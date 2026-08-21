@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="孔丽园 AIGC 创意视觉设计作品集">
+<meta name="theme-color" content="#F2F3EF">
+<title>孔丽园 · AIGC 作品集</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23A63D2F'/%3E%3Ctext x='32' y='44' font-size='32' text-anchor='middle' fill='%23F6F4EF' font-family='serif' font-weight='bold'%3E%E5%AD%94%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --paper:#F2F3EF; --surface:#FBFBF8; --ink:#1D2420; --muted:#6E736D;
+  --line:#E2DED3; --celadon:#9CB9A7; --deep:#3E6B5A; --brass:#A98F5F; --seal:#A63D2F;
+  --navbg:rgba(242,243,239,.86); --grain:.05;
+}
+html.dark{
+  --paper:#121512; --surface:#191D19; --ink:#EDEAE2; --muted:#9AA19A;
+  --line:#2B312B; --celadon:#B8D2C2; --deep:#7FB89E; --brass:#C3A878; --seal:#C25440;
+  --navbg:rgba(18,21,18,.86); --grain:.07;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;transition:background-color .25s ease,color .25s ease;line-height:1.5}
+.serif{font-family:Georgia,'Times New Roman','Songti SC','Noto Serif SC',serif}
+::selection{background:var(--deep);color:var(--paper)}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+.grain{position:fixed;inset:-24px;z-index:2000;pointer-events:none;opacity:var(--grain);mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+html.dark .grain{mix-blend-mode:overlay}
+.glaze{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(70% 55% at 85% -10%,rgba(156,185,167,.32),transparent 60%),radial-gradient(55% 45% at -10% 90%,rgba(169,143,95,.13),transparent 60%)}
+html.dark .glaze{background:radial-gradient(70% 55% at 85% -10%,rgba(127,184,158,.13),transparent 60%),radial-gradient(55% 45% at -10% 90%,rgba(195,168,120,.09),transparent 60%)}
+
+.seal{display:inline-grid;place-items:center;width:2.6rem;height:2.6rem;border-radius:4px;background:var(--seal);color:#F6F4EF;font-family:Georgia,'Songti SC','SimSun',serif;font-weight:700;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+html.dark .seal{color:#FFF}
+.eyebrow{font-family:Georgia,'Times New Roman',serif;letter-spacing:.34em;text-transform:uppercase;font-size:.68rem;color:var(--brass)}
+.pill{display:inline-flex;align-items:center;gap:.45rem;border:1px solid var(--line);border-radius:999px;padding:.28rem .8rem;font-size:.75rem;color:var(--muted);background:var(--surface)}
+.btn{display:inline-flex;align-items:center;gap:.5rem;border-radius:999px;padding:.6rem 1.2rem;font-size:.875rem;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .2s ease,background-color .2s ease,color .2s ease,transform .15s ease}
+.btn:hover{border-color:var(--deep);color:var(--deep);transform:translateY(-1px)}
+
+.top-nav{position:fixed;top:0;left:0;right:0;z-index:50;border-bottom:1px solid var(--line);background:var(--navbg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between}
+.nav-left{display:flex;align-items:center;gap:12px}
+.back-btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;color:var(--muted);transition:color .2s}
+.back-btn:hover{color:var(--deep)}
+
+.page-header{padding:140px 20px 60px;text-align:center}
+.page-header .eyebrow{margin-bottom:16px}
+.page-header h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:600;letter-spacing:-.025em;margin-bottom:12px}
+.page-header p{color:var(--muted);max-width:540px;margin:0 auto;font-size:1.05rem;line-height:1.7}
+.stats-bar{display:flex;justify-content:center;gap:24px;margin-top:32px;flex-wrap:wrap}
+.stats-bar .pill{padding:.4rem 1rem;font-size:.8rem}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+
+.gallery{max-width:1200px;margin:0 auto;padding:0 20px 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px}
+.work-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;transition:transform .25s ease,box-shadow .25s ease;cursor:pointer}
+.work-card:hover{transform:translateY(-4px);box-shadow:0px 1px 0px 0px rgba(0,0,0,.25),0px 4px 8px 0px rgba(0,0,0,.25)}
+.work-thumb{width:100%;aspect-ratio:4/3;overflow:hidden;background:var(--line)}
+.work-thumb img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
+.work-card:hover .work-thumb img{transform:scale(1.05)}
+.work-body{padding:20px}
+.work-body h3{font-size:1rem;font-weight:600;margin-bottom:8px}
+.work-body .desc{font-size:.85rem;color:var(--muted);line-height:1.5}
+
+.lightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:20px}
+.lightbox.active{display:flex}
+.lightbox img{max-width:90vw;max-height:90vh;object-contain;border-radius:8px}
+.lightbox-close{position:absolute;top:20px;right:20px;color:#fff;font-size:2rem;cursor:pointer;background:none;border:none}
+
+/* 音频控制按钮 */
+.audio-toggle{position:fixed;bottom:24px;right:24px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--deep);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 4px 16px rgba(0,0,0,.12);transition:all .3s ease}
+.audio-toggle:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(0,0,0,.18);border-color:var(--deep)}
+.audio-toggle:active{transform:scale(.96)}
+.audio-toggle svg{width:22px;height:22px;flex-shrink:0}
+.audio-toggle.playing{background:var(--deep);color:var(--paper);border-color:var(--deep)}
+.audio-bars{display:none;gap:2px;align-items:flex-end;height:16px}
+.audio-bars span{display:block;width:3px;background:currentColor;border-radius:2px}
+.audio-toggle.playing .audio-bars{display:flex}
+.audio-toggle.playing .audio-icon-play,.audio-toggle.playing .audio-icon-pause{display:none}
+.audio-toggle:not(.playing) .audio-icon-play{display:block}
+.audio-toggle:not(.playing) .audio-icon-pause{display:none}
+.audio-toggle.playing .audio-bars span:nth-child(1){animation:bar-dance 1s ease-in-out infinite;height:40%}
+.audio-toggle.playing .audio-bars span:nth-child(2){animation:bar-dance 1s ease-in-out infinite .2s;height:80%}
+.audio-toggle.playing .audio-bars span:nth-child(3){animation:bar-dance 1s ease-in-out infinite .4s;height:60%}
+@keyframes bar-dance{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+@media (max-width:640px){.audio-toggle{bottom:16px;right:16px;width:46px;height:46px}.audio-toggle svg{width:18px;height:18px}}
+</style>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="glaze" aria-hidden="true"></div>
+
+<!-- 背景音乐 -->
+<audio id="bgAudio" autoplay muted loop preload="metadata"></audio>
+
+<!-- 浮动音频控制按钮 -->
+<button id="audioToggle" class="audio-toggle" aria-label="播放背景音乐" aria-pressed="false">
+  <svg class="audio-icon-play" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5v14l11-7z"/>
+  </svg>
+  <svg class="audio-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+    <path d="M6 4h4v16H6zm8 0h4v16h-4z"/>
+  </svg>
+  <span class="audio-bars" aria-hidden="true">
+    <span></span><span></span><span></span>
+  </span>
+</button>
+
+<nav class="top-nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-left">
+      <span class="seal" style="width:2rem;height:2rem;font-size:.9rem">孔</span>
+      <span class="serif font-semibold" style="font-weight:600">孔丽园</span>
+    </a>
+    <div style="display:flex;gap:.8rem">
+      <a href="index.html" class="back-btn">← 返回简历</a>
+      <button class="btn" id="themeBtn" style="width:36px;height:36px;padding:0;justify-content:center" aria-label="切换深浅色">🌙</button>
+    </div>
+  </div>
+</nav>
+
+<header class="page-header">
+  <p class="eyebrow">Portfolio · Works</p>
+  <h1>AIGC 创意视觉作品集</h1>
+  <p>用 Midjourney 探索风格边界，以 Photoshop 精修细节，让每一组视觉都传递独特的情绪与故事</p>
+  <div class="stats-bar">
+    <span class="pill pill-cel">✨ AI 生成</span>
+    <span class="pill">🎨 视觉设计</span>
+    <span class="pill">🖼️ 品牌视觉</span>
+    <span class="pill">📖 插画</span>
+  </div>
+</header>
+
+<section id="gallery" class="gallery"></section>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">&times;</button>
+  <img id="lightboxImg" src="" alt="preview">
+</div>
+
+<script>
+(function(){
+'use strict';
+const $ = (s) => document.querySelector(s);
+
+function encodeAssetPath(p) {
+  p = p.replace(/\\/g, '/');
+  while (p.startsWith('./') || p.startsWith('/')) {
+    p = p.substring(p.indexOf('/') + 1);
+  }
+  return './' + p.split('/').map(encodeURIComponent).join('/');
+}
+
+// 音频控制 - 使用 localStorage 跨页面保持播放状态
+const bgAudio = $('#bgAudio');
+const audioToggle = $('#audioToggle');
+const STORAGE_KEY = 'bgAudioState';
+let isPlaying = false;
+let hasUserInteracted = false;
+
+// 设置音频源（使用 encodeAssetPath 避免特殊字符路径问题）
+if (bgAudio && !bgAudio.src) {
+  const audioFileName = 'HOYO-MiX - 太空漫步 Space Walk.flac';
+  bgAudio.src = encodeAssetPath(audioFileName);
+  bgAudio.addEventListener('error', function() {
+    console.warn('[Audio] 音频文件加载失败:', bgAudio.src);
+  });
+}
+
+// 保存播放状态到 localStorage
+function saveAudioState() {
+  if (bgAudio) {
+    const state = {
+      currentTime: bgAudio.currentTime,
+      isPlaying: isPlaying,
+      muted: bgAudio.muted
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+}
+
+// 从 localStorage 恢复播放状态
+function restoreAudioState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved || !bgAudio) return null;
+  try {
+    return JSON.parse(saved);
+  } catch (e) {
+    return null;
+  }
+}
+
+// 页面加载后自动播放（静音模式绕过浏览器限制）
+function autoPlay() {
+  if (!bgAudio) return;
+  
+  // 尝试恢复之前的播放状态
+  const savedState = restoreAudioState();
+  if (savedState && savedState.currentTime > 0) {
+    bgAudio.currentTime = savedState.currentTime;
+  }
+  
+  bgAudio.muted = savedState ? savedState.muted : true;
+  const playPromise = bgAudio.play();
+  if (playPromise !== undefined) {
+    playPromise.then(function() {
+      isPlaying = true;
+      hasUserInteracted = bgAudio.muted === false || (savedState && savedState.muted === false);
+      updateButtonState();
+    }).catch(function() {
+      console.warn('自动播放失败，等待用户交互');
+      bgAudio.muted = true;
+      bgAudio.play().catch(() => {});
+      isPlaying = true;
+      updateButtonState();
+    });
+  }
+}
+
+// 更新按钮显示状态
+function updateButtonState() {
+  if (isPlaying) {
+    audioToggle.classList.add('playing');
+    audioToggle.setAttribute('aria-pressed', 'true');
+    audioToggle.setAttribute('aria-label', '暂停背景音乐');
+  } else {
+    audioToggle.classList.remove('playing');
+    audioToggle.setAttribute('aria-pressed', 'false');
+    audioToggle.setAttribute('aria-label', '播放背景音乐');
+  }
+}
+
+// 用户首次交互时恢复声音
+function restoreAudio() {
+  if (bgAudio && bgAudio.muted) {
+    bgAudio.muted = false;
+    hasUserInteracted = true;
+    saveAudioState();
+  }
+}
+
+// 监听首次用户交互
+const restoreEvents = ['click', 'touchstart', 'keydown'];
+restoreEvents.forEach(function(event) {
+  document.addEventListener(event, restoreAudio, { once: true });
+});
+
+function toggleAudio() {
+  if (!bgAudio) return;
+  if (isPlaying) {
+    bgAudio.pause();
+    isPlaying = false;
+  } else {
+    bgAudio.muted = false;
+    bgAudio.play().catch(function() {
+      console.warn('音频播放失败');
+    });
+    isPlaying = true;
+    hasUserInteracted = true;
+  }
+  updateButtonState();
+  saveAudioState();
+}
+
+audioToggle.addEventListener('click', toggleAudio);
+
+// 定时保存播放位置
+setInterval(function() {
+  if (isPlaying && bgAudio) {
+    saveAudioState();
+  }
+}, 1000);
+
+// 页面隐藏时保存状态
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    saveAudioState();
+  }
+});
+
+// 页面卸载前保存状态
+window.addEventListener('beforeunload', saveAudioState);
+
+// 尝试自动播放
+autoPlay();
+
+const works = [
+  { title: '3D 迪士尼风格', desc: '3D Disney 风格女性角色设计', file: 'averya0013_3D_Disney_Style_Women_6a6009a3-832d-40f5-8941-b96c5445b052.png' },
+  { title: '动漫风格少女', desc: 'Anime 风格少女形象', file: 'averya0013_Anime_style_girl_c6e9238a-32d5-4fe3-9378-c0aea7bc30cd.png' },
+  { title: '创意海报', desc: 'AIGC 创意海报设计', file: '图8.png' },
+  { title: '莫奈风格睡莲', desc: '湖光晚霞与睡莲的印象派画作', file: 'flua8540_A_lake_colorful_sunset_Monets_water_lily_painting_styl_c220a264-1cd9-4cfc-a9e4-8ac9c9aa992f.png' },
+  { title: '彩色梦境 1', desc: '机器人误入彩色梦境', file: 'flua8540_A_robot_accidentally_entered_a_colorful_dream_realm._F_a916da5d-34e4-47e9-8bb6-b6150d218aa2.png' },
+  { title: '彩色梦境 2', desc: '彩色梦境中的奇幻世界', file: 'flua8540_A_robot_accidentally_entered_a_colorful_dream_realm._F_b8fe6aff-bc39-46ee-bd75-6f5f3f1660f9.png' },
+  { title: '茉莉与睡莲', desc: '莫奈风格茉莉花卉', file: 'flua8540_In_the_style_of_Monets_water_lilies_paint_a_jasmine_pl_e03303e6-3852-4faf-8554-3d2ed210f267 - 副本.png' },
+  { title: '黑白小猫', desc: '黑白小猫的温馨场景', file: 'flua8540_The_little_white_cat_and_the_little_black_cat_are_havi_b43d7549-2565-4be3-a6ff-20dfdee71c92 - 副本.png' },
+  { title: '木屋溪流', desc: '木屋前溪水流淌的自然风景', file: 'flua8540_There_is_a_small_wooden_house_with_water_flowing_in_fr_ff2e0c29-9be2-4f1c-8f76-b5f307a8d953.png' },
+  { title: '雪山少女', desc: '电影质感雪山少女', file: 'flua8540_cinematic_textureThe_girl_in_the_snow_mountain_e1939502-f952-4525-9f9b-509da632fbc2.png' },
+  { title: '草地奔跑 1', desc: '少女在草地上奔跑', file: 'jrxyt6zupau_A_girl_runs_through_the_grass_07689be3-8026-4932-9a43-e861425766f9 - 副本.png' },
+  { title: '草地奔跑 2', desc: '草地奔跑的动态瞬间', file: 'jrxyt6zupau_A_girl_runs_through_the_grass_9f3f58ac-57c4-4d81-b7ad-ce6024282f44 - 副本.png' },
+  { title: '荷塘（模仿梵高风格）', desc: '荷花与荷叶的意境', file: 'jrxyt6zupau_Lotus_flowers_lotus_leaves_3ff80110-8ed1-4f52-bc2e-74fc11a2f0a6 - 副本.png' },
+  { title: '作品 13', desc: 'AIGC 创意作品', file: 'jrxyt6zupau_None_8c379ce2-a27b-45db-a965-d7fb1a11ee5d - 副本.png' },
+  { title: '作品 14', desc: 'AIGC 创意作品', file: 'jrxyt6zupau_None_caada7c2-4637-4cd9-8df7-025258b91829 - 副本.png' },
+  { title: '作品 15', desc: 'AIGC 创意作品', file: 'jrxyt6zupau_None_cbab9ff4-ea65-4407-9a08-c877be1744c3.png' }
+];
+
+function renderGallery() {
+  const gallery = $('#gallery');
+  works.forEach(function(w, i) {
+    const card = document.createElement('div');
+    card.className = 'work-card';
+    const rawPath = w.file.startsWith('../') ? w.file : 'paintings/' + w.file;
+    const src = encodeAssetPath(rawPath);
+    card.innerHTML =
+      '<div class="work-thumb">' +
+        '<img src="' + src + '" alt="' + w.title + '" loading="lazy">' +
+      '</div>' +
+      '<div class="work-body">' +
+        '<h3>' + w.title + '</h3>' +
+        '<p class="desc">' + w.desc + '</p>' +
+      '</div>';
+    card.addEventListener('click', function() {
+      $('#lightboxImg').src = src;
+      $('#lightbox').classList.add('active');
+    });
+    gallery.appendChild(card);
+  });
+}
+renderGallery();
+
+$('#lightboxClose').addEventListener('click', function() {
+  $('#lightbox').classList.remove('active');
+});
+$('#lightbox').addEventListener('click', function(e) {
+  if (e.target.id === 'lightbox') {
+    $('#lightbox').classList.remove('active');
+  }
+});
+
+let theme = localStorage.getItem('resume-theme') || 'light';
+function applyTheme(t){
+  theme = t;
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  localStorage.setItem('resume-theme', t);
+  $('#themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+}
+applyTheme(theme);
+$('#themeBtn').addEventListener('click', function(){
+  applyTheme(theme === 'dark' ? 'light' : 'dark');
+});
+})();
+</script>
+</body>
+</html>
