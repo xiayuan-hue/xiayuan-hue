@@ -825,10 +825,10 @@ function applyTheme(next) {
   try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
   const btn = $('#themeToggle');
   if (btn) {
-    btn.innerHTML = '';
-    btn.appendChild(icon(next === 'dark' ? 'sun' : 'moon', 'h-[18px] w-[18px]'));
-    btn.setAttribute('aria-label', next === 'dark' ? '切换为浅色模式' : '切换为深色模式');
-    btn.setAttribute('title', next === 'dark' ? '切换为浅色模式' : '切换为深色模式');
+    const imgAlt = next === 'dark' ? '切换为浅色模式' : '切换为深色模式';
+    btn.innerHTML = '<img src="./图10.png" alt="' + imgAlt + '" class="h-[18px] w-[18px] object-contain" draggable="false">';
+    btn.setAttribute('aria-label', imgAlt);
+    btn.setAttribute('title', imgAlt);
   }
 }
 
