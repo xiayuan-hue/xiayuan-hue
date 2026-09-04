@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>坦克对战</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #17191d;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: auto;
+  }
+  .game-wrap {
+    position: relative; width: 800px; height: 600px;
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 14px 50px rgba(0,0,0,.55);
+  }
+  canvas { display: block; width: 800px; height: 600px; }
+  #overlay {
+    position: absolute; inset: 0; z-index: 5;
+    background: rgba(8,10,14,.72);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; text-align: center; padding: 26px;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 {
+    margin: 0; font-size: 30px; color: #fff; letter-spacing: 2px;
+    text-shadow: 0 2px 10px rgba(0,0,0,.7);
+  }
+  #overlay .result { font-size: 46px; margin: 0; }
+  #overlay .rules {
+    margin: 0; color: #dbe4ef; font-size: 16px; line-height: 2;
+    max-width: 580px;
+  }
+  #overlay .stats { margin: 0; color: #e2e8f0; font-size: 16px; }
+  .btn {
+    border: 0; cursor: pointer; font-size: 18px; font-weight: 700;
+    padding: 13px 36px; border-radius: 999px; color: #fff;
+    background: linear-gradient(135deg, #38bdf8, #2563eb);
+    box-shadow: 0 8px 22px rgba(37,99,235,.45);
+    letter-spacing: 1px; transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(0); }
+  .btn.warn { background: linear-gradient(135deg, #fb923c, #dc2626); box-shadow: 0 8px 22px rgba(220,38,38,.4); }
+  #muteBtn {
+    position: absolute; left: 10px; bottom: 10px; z-index: 6;
+    width: 42px; height: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(15,18,22,.55); color: #fff; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="game-wrap">
+  <canvas id="game" width="800" height="600"></canvas>
+  <div id="overlay"></div>
+  <button id="muteBtn" title="声音开关">🔊</button>
+</div>
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const muteBtn = document.getElementById('muteBtn');
+
+  const W = 800, H = 600, CELL = 30;
+
+  const CFG = {
+    playerSpeed: 150,
+    enemySpeed: 90,
+    playerBulletSpeed: 360,
+    enemyBulletSpeed: 240,
+    tankSize: 28,
+    bulletSize: 10,
+    fireCooldown: 0.4,
+    enemyFireMin: 1.5,
+    enemyFireMax: 2.0,
+    enemyDirMin: 1.0,
+    enemyDirMax: 2.5,
+    invulnTime: 0.5,
+    shakeTime: 0.25,
+    enemyCount: 2,
+    enemyHp: 3,
+    woodCount: 25,
+    bulletStep: 12,
+    barrelLen: 22
+  };
+
+  const STEEL = [
+    { x: 0, y: 0, w: W, h: 30 },
+    { x: 0, y: H - 30, w: W, h: 30 },
+    { x: 0, y: 0, w: 30, h: H },
+    { x: W - 30, y: 0, w: 30, h: H }
+  ];
+
+  const LETTER_DEFS = {
+    K: { col: 4, row: 6, shape: ['#...#', '#.#..', '##...', '#.#..', '#...#', '#...#', '#...#'] },
+    L: { col: 11, row: 6, shape: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'] },
+    Y: { col: 18, row: 6, shape: ['#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..', '..#..'] }
+  };
+
+  const DIR = [
+    { x: 0, y: -1 },
+    { x: 1, y: 0 },
+    { x: 0, y: 1 },
+    { x: -1, y: 0 }
+  ];
+  const KEY_FOR_DIR = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'];
+
+  let bricks = [];
+  let brickSet = new Set();
+  let woods = [];
+  let woodSet = new Set();
+  let player = null;
+  let enemies = [];
+  let bullets = [];
+  let particles = [];
+  let state = 'menu';
+  let kills = 0;
+  let shake = 0;
+  let muted = false;
+  let lastTime = 0;
+  let bgImage = null;
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function randInt(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); }
+  function overlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  // ---------- background ----------
+  function makeGrass() {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#3f8f3f';
+    g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 2400; i++) {
+      const x = Math.random() * W, y = Math.random() * H;
+      const s = 0.6 + Math.random() * 2.2;
+      const v = Math.random();
+      if (v < 0.5) g.fillStyle = 'rgba(20,70,25,0.35)';
+      else if (v < 0.8) g.fillStyle = 'rgba(105,170,80,0.3)';
+      else g.fillStyle = 'rgba(50,110,40,0.5)';
+      g.fillRect(x, y, s, s);
+    }
+    g.fillStyle = 'rgba(0,0,0,0.05)';
+    for (let y = 0; y < H; y += CELL) g.fillRect(0, y, W, 1);
+    return c;
+  }
+  const grass = makeGrass();
+
+  function loadBackground() {
+    const imgPng = new Image();
+    imgPng.onload = () => { bgImage = imgPng; };
+    imgPng.onerror = () => {
+      const imgJpg = new Image();
+      imgJpg.onload = () => { bgImage = imgJpg; };
+      imgJpg.onerror = () => { bgImage = null; };
+      imgJpg.src = '图1.jpg';
+    };
+    imgPng.src = '图1.png';
+  }
+  loadBackground();
+
+  // ---------- map ----------
+  function buildBricks() {
+    bricks = [];
+    brickSet = new Set();
+    for (const key of ['K', 'L', 'Y']) {
+      const d = LETTER_DEFS[key];
+      for (let r = 0; r < d.shape.length; r++) {
+        const row = d.shape[r];
+        for (let c = 0; c < row.length; c++) {
+          if (row[c] === '#') {
+            const col = d.col + c, rr = d.row + r;
+            bricks.push({ x: col * CELL, y: rr * CELL, w: CELL, h: CELL });
+            brickSet.add(col + ',' + rr);
+          }
+        }
+      }
+    }
+  }
+
+  function cellKey(c, r) { return c + ',' + r; }
+  function isWallCell(c, r) {
+    return c <= 0 || c >= 25 || r <= 0 || r >= 19 || brickSet.has(cellKey(c, r));
+  }
+  function isOpenCell(c, r) {
+    return !isWallCell(c, r) && !woodSet.has(cellKey(c, r));
+  }
+  function neighborsOf(c, r) {
+    const out = [];
+    if (c < 24) out.push([c + 1, r]);
+    if (c > 1) out.push([c - 1, r]);
+    if (r < 18) out.push([c, r + 1]);
+    if (r > 1) out.push([c, r - 1]);
+    return out;
+  }
+  function cellOfTank(t) {
+    return [Math.floor((t.x + t.w / 2) / CELL), Math.floor((t.y + t.h / 2) / CELL)];
+  }
+  function reachableOpen(fromC, fromR, toC, toR) {
+    const start = cellKey(fromC, fromR);
+    const target = cellKey(toC, toR);
+    if (start === target) return true;
+    const q = [start], seen = new Set([start]);
+    while (q.length) {
+      const k = q.shift();
+      const [c, r] = k.split(',').map(Number);
+      for (const [nc, nr] of neighborsOf(c, r)) {
+        if (!isOpenCell(nc, nr)) continue;
+        const nk = cellKey(nc, nr);
+        if (nk === target) return true;
+        if (seen.has(nk)) continue;
+        seen.add(nk);
+        q.push(nk);
+      }
+    }
+    return false;
+  }
+  function findPathAllowWood(fromC, fromR, toC, toR) {
+    const start = cellKey(fromC, fromR);
+    const target = cellKey(toC, toR);
+    const parent = {};
+    const q = [start], seen = new Set([start]);
+    while (q.length) {
+      const k = q.shift();
+      if (k === target) break;
+      const [c, r] = k.split(',').map(Number);
+      for (const [nc, nr] of neighborsOf(c, r)) {
+        if (isWallCell(nc, nr)) continue;
+        const nk = cellKey(nc, nr);
+        if (seen.has(nk)) continue;
+        seen.add(nk);
+        parent[nk] = k;
+        q.push(nk);
+      }
+    }
+    if (!seen.has(target)) return null;
+    const path = [target];
+    let k = target;
+    while (k !== start) {
+      k = parent[k];
+      path.push(k);
+    }
+    path.reverse();
+    return path;
+  }
+
+  function addWood(c, r) {
+    const key = cellKey(c, r);
+    if (woodSet.has(key)) return;
+    woodSet.add(key);
+    woods.push({ x: c * CELL, y: r * CELL, w: CELL, h: CELL });
+  }
+  function removeWood(c, r) {
+    const key = cellKey(c, r);
+    woodSet.delete(key);
+    for (let i = 0; i < woods.length; i++) {
+      if (woods[i].x === c * CELL && woods[i].y === r * CELL) {
+        woods.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  function collectSpawnRects() {
+    const rects = [{ x: player.x, y: player.y, w: player.w, h: player.h }];
+    for (const e of enemies) rects.push({ x: e.x, y: e.y, w: e.w, h: e.h });
+    return rects;
+  }
+
+  function candidateWoodCells(spawnRects) {
+    const cells = [];
+    for (let r = 1; r <= 18; r++) {
+      for (let c = 1; c <= 24; c++) {
+        if (isWallCell(c, r)) continue;
+        if (c === 1 || c === 24 || r === 1 || r === 18) continue; // guaranteed perimeter corridor
+        const rect = { x: c * CELL, y: r * CELL, w: CELL, h: CELL };
+        if (spawnRects.some(s => overlap(rect, s))) continue;
+        cells.push([c, r]);
+      }
+    }
+    return cells;
+  }
+
+  function generateWoods() {
+    woods = [];
+    woodSet = new Set();
+    const spawnRects = collectSpawnRects();
+    const candidates = shuffle(candidateWoodCells(spawnRects));
+    for (let i = 0; i < CFG.woodCount && i < candidates.length; i++) {
+      addWood(candidates[i][0], candidates[i][1]);
+    }
+    ensureConnectivity();
+    refillWoods(spawnRects);
+  }
+
+  function ensureConnectivity() {
+    const [pc, pr] = cellOfTank(player);
+    for (let pass = 0; pass < enemies.length + 1; pass++) {
+      let allOk = true;
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const [ec, er] = cellOfTank(e);
+        if (!reachableOpen(pc, pr, ec, er)) {
+          allOk = false;
+          const path = findPathAllowWood(ec, er, pc, pr);
+          if (path) {
+            for (const k of path) {
+              if (woodSet.has(k)) {
+                const [c, r] = k.split(',').map(Number);
+                removeWood(c, r);
+              }
+            }
+          }
+        }
+      }
+      if (allOk) break;
+    }
+  }
+
+  function refillWoods(spawnRects) {
+    if (woods.length >= CFG.woodCount) return;
+    const candidates = shuffle(candidateWoodCells(spawnRects).filter(([c, r]) => !woodSet.has(cellKey(c, r))));
+    const [pc, pr] = cellOfTank(player);
+    for (const [c, r] of candidates) {
+      if (woods.length >= CFG.woodCount) break;
+      addWood(c, r);
+      let ok = true;
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const [ec, er] = cellOfTank(e);
+        if (!reachableOpen(pc, pr, ec, er)) { ok = false; break; }
+      }
+      if (!ok) removeWood(c, r);
+    }
+  }
+
+  // ---------- entities ----------
+  function makeTank(type, x, y, dir) {
+    return {
+      type, x, y, w: CFG.tankSize, h: CFG.tankSize, dir,
+      speed: type === 'player' ? CFG.playerSpeed : CFG.enemySpeed,
+      lives: type === 'player' ? 3 : 0,
+      hp: type === 'enemy' ? CFG.enemyHp : 0,
+      invuln: 0,
+      fireCd: 0,
+      dirTimer: rand(CFG.enemyDirMin, CFG.enemyDirMax),
+      fireTimer: rand(CFG.enemyFireMin, CFG.enemyFireMax),
+      dead: false
+    };
+  }
+
+  function resetGame() {
+    buildBricks();
+    player = makeTank('player', (W - CFG.tankSize) / 2, H - 30 - CFG.tankSize, 0);
+    enemies = [];
+    spawnEnemies();
+    generateWoods();
+    bullets = [];
+    particles = [];
+    kills = 0;
+    shake = 0;
+  }
+
+  function spawnEnemies() {
+    const positions = [
+      { x: 22 * CELL + (CELL - CFG.tankSize) / 2, y: 3 * CELL + (CELL - CFG.tankSize) / 2 },
+      { x: 17 * CELL + (CELL - CFG.tankSize) / 2, y: 4 * CELL + (CELL - CFG.tankSize) / 2 }
+    ];
+    for (let i = 0; i < CFG.enemyCount; i++) {
+      const p = positions[i % positions.length];
+      enemies.push(makeTank('enemy', p.x, p.y, randInt(0, 3)));
+    }
+  }
+
+  // ---------- collision ----------
+  function tankCollidesWorld(t) {
+    for (const r of STEEL) if (overlap(t, r)) return true;
+    for (const b of bricks) if (overlap(t, b)) return true;
+    for (const w of woods) if (overlap(t, w)) return true;
+    return false;
+  }
+
+  function tankCollidesTanks(t) {
+    if (t !== player && overlap(t, player)) return true;
+    for (const e of enemies) {
+      if (e.dead) continue;
+      if (e !== t && overlap(t, e)) return true;
+    }
+    return false;
+  }
+
+  function tryMoveTank(t, dx, dy) {
+    const ox = t.x, oy = t.y;
+    t.x += dx; t.y += dy;
+    if (tankCollidesWorld(t) || tankCollidesTanks(t)) {
+      t.x = ox; t.y = oy;
+      return false;
+    }
+    return true;
+  }
+
+  function barrelTip(cx, cy, dx, dy) {
+    return { x: cx + dx * CFG.barrelLen, y: cy + dy * CFG.barrelLen };
+  }
+
+  // ---------- firing ----------
+  function tryFirePlayer() {
+    if (state !== 'playing' || player.fireCd > 0) return;
+    const d = DIR[player.dir];
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+    const tip = barrelTip(cx, cy, d.x, d.y);
+    bullets.push({
+      x: tip.x - CFG.bulletSize / 2, y: tip.y - CFG.bulletSize / 2,
+      w: CFG.bulletSize, h: CFG.bulletSize,
+      dx: d.x, dy: d.y, speed: CFG.playerBulletSpeed,
+      owner: 'player', shooter: 'player', bounces: 0, dead: false
+    });
+    player.fireCd = CFG.fireCooldown;
+    particles.push({ kind: 'flash', x: tip.x, y: tip.y, life: 0.08, max: 0.08 });
+    sfxFire();
+  }
+
+  function fireEnemy(e) {
+    const d = DIR[e.dir];
+    const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+    const tip = barrelTip(ex, ey, d.x, d.y);
+    bullets.push({
+      x: tip.x - CFG.bulletSize / 2, y: tip.y - CFG.bulletSize / 2,
+      w: CFG.bulletSize, h: CFG.bulletSize,
+      dx: d.x, dy: d.y, speed: CFG.enemyBulletSpeed,
+      owner: 'enemy', shooter: e, bounces: 0, dead: false
+    });
+  }
+
+  function addBoom(x, y) {
+    for (let i = 0; i < 12; i++) {
+      particles.push({
+        kind: 'boom', x: x + rand(-6, 6), y: y + rand(-6, 6),
+        vx: rand(-60, 60), vy: rand(-60, 60),
+        size: rand(2, 5), life: rand(0.2, 0.45), max: 0.45,
+        color: Math.random() < 0.5 ? '#fbbf24' : '#f97316'
+      });
+    }
+  }
+
+  function addSpark(x, y) {
+    for (let i = 0; i < 6; i++) {
+      particles.push({
+        kind: 'boom', x: x + rand(-4, 4), y: y + rand(-4, 4),
+        vx: rand(-45, 45), vy: rand(-45, 45),
+        size: rand(1, 3), life: rand(0.12, 0.3), max: 0.3,
+        color: '#fde68a'
+      });
+    }
+  }
+
+  function damagePlayer() {
+    if (player.invuln > 0) return;
+    player.lives--;
+    player.invuln = CFG.invulnTime;
+    shake = CFG.shakeTime;
+    addBoom(player.x + player.w / 2, player.y + player.h / 2);
+    sfxHit();
+  }
+
+  function damageEnemy(e) {
+    e.hp--;
+    if (e.hp <= 0) {
+      e.dead = true;
+      kills++;
+      addBoom(e.x + e.w / 2, e.y + e.h / 2);
+      sfxExplosion();
+    } else {
+      addSpark(e.x + e.w / 2, e.y + e.h / 2);
+      sfxHit();
+    }
+  }
+
+  // ---------- update ----------
+  function movePlayer(dt) {
+    const key = KEY_FOR_DIR[player.dir];
+    if (!keys[key]) return;
+    const d = DIR[player.dir];
+    tryMoveTank(player, d.x * player.speed * dt, d.y * player.speed * dt);
+  }
+
+  function updateEnemies(dt) {
+    for (const e of enemies) {
+      if (e.dead) continue;
+      e.dirTimer -= dt;
+      if (e.dirTimer <= 0) {
+        e.dir = randInt(0, 3);
+        e.dirTimer = rand(CFG.enemyDirMin, CFG.enemyDirMax);
+      }
+      const d = DIR[e.dir];
+      const moved = tryMoveTank(e, d.x * e.speed * dt, d.y * e.speed * dt);
+      if (!moved) {
+        e.dir = randInt(0, 3);
+        e.dirTimer = rand(CFG.enemyDirMin, CFG.enemyDirMax);
+      }
+      e.fireTimer -= dt;
+      if (e.fireTimer <= 0) {
+        e.fireTimer = rand(CFG.enemyFireMin, CFG.enemyFireMax);
+        fireEnemy(e);
+      }
+    }
+  }
+
+  function collideSteel(b) {
+    for (const r of STEEL) {
+      if (overlap(b, r)) {
+        if (b.dx !== 0) {
+          if (b.dx > 0) b.x = r.x - b.w - 0.5;
+          else b.x = r.x + r.w + 0.5;
+          b.dx = -b.dx;
+        } else {
+          if (b.dy > 0) b.y = r.y - b.h - 0.5;
+          else b.y = r.y + r.h + 0.5;
+          b.dy = -b.dy;
+        }
+        b.bounces = (b.bounces || 0) + 1;
+        if (b.bounces >= 3) {
+          b.dead = true;
+          addSpark(b.x + b.w / 2, b.y + b.h / 2);
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function collideBrick(b) {
+    for (const br of bricks) {
+      if (overlap(b, br)) {
+        addSpark(b.x + b.w / 2, b.y + b.h / 2);
+        sfxBrick();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function collideWood(b) {
+    for (let i = 0; i < woods.length; i++) {
+      if (overlap(b, woods[i])) {
+        const w = woods[i];
+        woods.splice(i, 1);
+        woodSet.delete(cellKey(w.x / CELL, w.y / CELL));
+        addSpark(b.x + b.w / 2, b.y + b.h / 2);
+        sfxBrick();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function collideTanks(b) {
+    if (overlap(b, player)) {
+      if (b.shooter === 'player') return false;
+      if (player.invuln > 0) return false;
+      b.dead = true;
+      damagePlayer();
+      return true;
+    }
+    if (b.owner === 'player') {
+      for (const e of enemies) {
+        if (e.dead) continue;
+        if (overlap(b, e)) {
+          b.dead = true;
+          damageEnemy(e);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function updateBullets(dt) {
+    for (const b of bullets) {
+      if (b.dead) continue;
+      let remaining = b.speed * dt;
+      while (remaining > 0 && !b.dead) {
+        const step = Math.min(remaining, CFG.bulletStep);
+        b.x += b.dx * step;
+        b.y += b.dy * step;
+        if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) {
+          b.dead = true;
+          break;
+        }
+        collideSteel(b);
+        if (!b.dead && collideBrick(b)) {
+          b.dead = true;
+          break;
+        }
+        if (!b.dead && collideWood(b)) {
+          b.dead = true;
+          break;
+        }
+        if (!b.dead) collideTanks(b);
+        remaining -= step;
+      }
+    }
+    bullets = bullets.filter(b => !b.dead);
+  }
+
+  function updateParticles(dt) {
+    for (const p of particles) {
+      p.life -= dt;
+      if (p.kind === 'boom') {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.9;
+        p.vy *= 0.9;
+      }
+    }
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function update(dt) {
+    if (state !== 'playing') return;
+    if (player.invuln > 0) player.invuln -= dt;
+    if (player.fireCd > 0) player.fireCd -= dt;
+    if (keys[' ']) tryFirePlayer();
+    movePlayer(dt);
+    updateEnemies(dt);
+    updateBullets(dt);
+    updateParticles(dt);
+    if (shake > 0) shake -= dt;
+
+    if (player.lives <= 0) {
+      state = 'lost';
+      showOverlay('lost');
+      sfxLose();
+    } else if (kills >= CFG.enemyCount) {
+      state = 'won';
+      showOverlay('won');
+      sfxWin();
+    }
+  }
+
+  // ---------- render ----------
+  function drawBackground() {
+    if (bgImage) ctx.drawImage(bgImage, 0, 0, W, H);
+    else ctx.drawImage(grass, 0, 0);
+  }
+
+  function drawWalls() {
+    for (const r of STEEL) {
+      const g = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+      g.addColorStop(0, '#c3c9d0');
+      g.addColorStop(0.12, '#9aa1aa');
+      g.addColorStop(1, '#6f7781');
+      ctx.fillStyle = g;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      for (let x = r.x + 9; x < r.x + r.w; x += 30) {
+        for (let y = r.y + 9; y < r.y + r.h; y += 30) {
+          ctx.beginPath();
+          ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function drawBrick(b) {
+    ctx.fillStyle = '#b8481d';
+    ctx.fillRect(b.x, b.y, CELL, CELL);
+    ctx.fillStyle = '#d2691e';
+    ctx.fillRect(b.x + 1, b.y + 1, CELL - 2, CELL - 2);
+    ctx.fillStyle = 'rgba(255,190,130,0.28)';
+    ctx.fillRect(b.x + 1, b.y + 1, CELL - 2, 4);
+    ctx.strokeStyle = 'rgba(70,25,8,0.6)';
+    ctx.lineWidth = 1.5;
+    const midY = b.y + CELL / 2;
+    ctx.beginPath();
+    ctx.moveTo(b.x, midY);
+    ctx.lineTo(b.x + CELL, midY);
+    ctx.moveTo(b.x + CELL * 0.5, b.y);
+    ctx.lineTo(b.x + CELL * 0.5, midY);
+    ctx.moveTo(b.x + CELL * 0.25, midY);
+    ctx.lineTo(b.x + CELL * 0.25, b.y + CELL);
+    ctx.moveTo(b.x + CELL * 0.75, midY);
+    ctx.lineTo(b.x + CELL * 0.75, b.y + CELL);
+    ctx.stroke();
+  }
+
+  function drawWood(w) {
+    ctx.fillStyle = '#8b5a2b';
+    ctx.fillRect(w.x, w.y, CELL, CELL);
+    ctx.fillStyle = '#a06b34';
+    ctx.fillRect(w.x + 1, w.y + 1, CELL - 2, CELL - 2);
+    ctx.fillStyle = 'rgba(255,220,170,0.25)';
+    ctx.fillRect(w.x + 1, w.y + 1, CELL - 2, 5);
+    ctx.strokeStyle = 'rgba(55,30,10,0.65)';
+    ctx.lineWidth = 1.5;
+    const midY = w.y + CELL / 2;
+    ctx.beginPath();
+    ctx.moveTo(w.x, midY);
+    ctx.lineTo(w.x + CELL, midY);
+    ctx.moveTo(w.x + CELL * 0.5, w.y);
+    ctx.lineTo(w.x + CELL * 0.5, midY);
+    ctx.stroke();
+  }
+
+  function enemyPalette(hp) {
+    if (hp >= 3) return { body: '#22c55e', dark: '#15803d', tread: '#14532d' };
+    if (hp === 2) return { body: '#eab308', dark: '#a16207', tread: '#713f12' };
+    return { body: '#ef4444', dark: '#b91c1c', tread: '#7f1d1d' };
+  }
+
+  function drawTank(t) {
+    let alpha = 1;
+    if (t.invuln > 0) {
+      alpha = (Math.floor(t.invuln * 20) % 2 === 0) ? 0.3 : 0.85;
+    }
+    const pal = t.type === 'player'
+      ? { body: '#3b82f6', dark: '#1d4ed8', tread: '#1e293b' }
+      : enemyPalette(t.hp);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(t.x + t.w / 2, t.y + t.h / 2);
+    ctx.rotate(t.dir * Math.PI / 2);
+
+    ctx.fillStyle = pal.tread;
+    roundRect(ctx, -14, -12, 7, 24, 2); ctx.fill();
+    roundRect(ctx, 7, -12, 7, 24, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let i = 0; i < 6; i++) {
+      const y = -10 + i * 4;
+      ctx.fillRect(-14, y, 7, 2);
+      ctx.fillRect(7, y, 7, 2);
+    }
+    ctx.fillStyle = pal.body;
+    roundRect(ctx, -11, -12, 22, 24, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    roundRect(ctx, -9, -10, 18, 7, 3); ctx.fill();
+    ctx.fillStyle = pal.dark;
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.arc(-2, -2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pal.dark;
+    roundRect(ctx, -3, -CFG.barrelLen + 3, 6, CFG.barrelLen, 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBullets() {
+    for (const b of bullets) {
+      if (b.dead) continue;
+      ctx.save();
+      ctx.shadowColor = b.owner === 'player' ? '#7dd3fc' : '#fda4af';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = b.owner === 'player' ? '#e0f2fe' : '#fecaca';
+      ctx.beginPath();
+      ctx.arc(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const a = Math.max(0, p.life / p.max);
+      if (p.kind === 'flash') {
+        const r = 8 + (1 - a) * 7;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0, 'rgba(255,255,255,1)');
+        g.addColorStop(0.4, 'rgba(255,240,180,0.9)');
+        g.addColorStop(1, 'rgba(255,200,80,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+      } else if (p.kind === 'boom') {
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  function drawPill(x, y, text) {
+    const w = ctx.measureText(text).width + 18;
+    const h = 26;
+    ctx.fillStyle = 'rgba(15,18,22,0.52)';
+    roundRect(ctx, x, y, w, h, 13); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, x + 9, y + h / 2 + 1);
+  }
+
+  function drawHUD() {
+    ctx.save();
+    ctx.font = 'bold 16px "Segoe UI", "Microsoft YaHei", sans-serif';
+    ctx.textBaseline = 'middle';
+    drawPill(8, 4, `❤️ x ${player.lives}`);
+
+    const items = [`☠️ ${kills}/${CFG.enemyCount}`];
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      items.push(e.dead
+        ? `敌${i + 1}: 💀 已摧毁`
+        : `敌${i + 1}: ${'❤️'.repeat(Math.max(0, e.hp))}`);
+    }
+    let y = 4;
+    for (const txt of items) {
+      const w = ctx.measureText(txt).width + 18;
+      drawPill(W - 8 - w, y, txt);
+      y += 28;
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shake > 0) {
+      const s = 5 * (shake / CFG.shakeTime);
+      ctx.translate(rand(-s, s), rand(-s, s));
+    }
+    drawBackground();
+    drawWalls();
+    for (const b of bricks) drawBrick(b);
+    for (const w of woods) drawWood(w);
+    for (const e of enemies) if (!e.dead) drawTank(e);
+    if (state !== 'lost') drawTank(player);
+    drawBullets();
+    drawParticles();
+    ctx.restore();
+    drawHUD();
+  }
+
+  // ---------- audio ----------
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function tone(freq, dur, type, vol, when, slideTo) {
+    if (!audioCtx || muted) return;
+    const t = audioCtx.currentTime + (when || 0);
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol, when, freq) {
+    if (!audioCtx || muted) return;
+    const t = audioCtx.currentTime + (when || 0);
+    const len = Math.floor(audioCtx.sampleRate * dur);
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = freq || 1000;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(filter).connect(g).connect(audioCtx.destination);
+    src.start(t);
+  }
+  function sfxFire() { tone(180, 0.08, 'square', 0.06, 0, 60); }
+  function sfxExplosion() { noise(0.25, 0.16, 0, 700); tone(90, 0.2, 'sawtooth', 0.07, 0, 40); }
+  function sfxBrick() { noise(0.12, 0.08, 0, 1400); }
+  function sfxHit() { tone(300, 0.22, 'sawtooth', 0.09, 0, 90); }
+  function sfxWin() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'triangle', 0.08, i * 0.12)); }
+  function sfxLose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.22, 'triangle', 0.08, i * 0.15)); }
+
+  // ---------- UI ----------
+  function showOverlay(mode) {
+    overlay.classList.remove('hidden');
+    if (mode === 'menu') {
+      overlay.innerHTML = `
+        <h1>坦克对战</h1>
+        <p class="rules">你有三次生命，被任何敌方导弹击中一次则会减少一条生命，没有生命则游戏失败。敌方共有两辆坦克，每辆坦克有三条生命，击败全部敌方坦克即为胜利。按方向键移动坦克，按空格键发射炮弹。注意：木块可被炮弹摧毁，但道路不会被完全堵死。</p>
+        <button class="btn" id="startBtn">我知道了，开始游戏</button>`;
+      document.getElementById('startBtn').addEventListener('click', startGame);
+    } else if (mode === 'won') {
+      overlay.innerHTML = `
+        <h1 class="result">🎉 胜利！</h1>
+        <p class="stats">成功摧毁 ${kills}/${CFG.enemyCount} 辆敌方坦克</p>
+        <button class="btn" id="restartBtn">重新开始</button>`;
+      document.getElementById('restartBtn').addEventListener('click', startGame);
+    } else if (mode === 'lost') {
+      overlay.innerHTML = `
+        <h1 class="result">💀 失败...</h1>
+        <p class="stats">摧毁 ${kills}/${CFG.enemyCount} 辆敌方坦克</p>
+        <button class="btn warn" id="restartBtn">重新开始</button>`;
+      document.getElementById('restartBtn').addEventListener('click', startGame);
+    }
+  }
+
+  function startGame() {
+    resetGame();
+    state = 'playing';
+    overlay.classList.add('hidden');
+    ensureAudio();
+  }
+
+  // ---------- input ----------
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight' || k === ' ') {
+      e.preventDefault();
+      keys[k] = true;
+      if (!player) return;
+      if (k === 'ArrowUp') player.dir = 0;
+      else if (k === 'ArrowRight') player.dir = 1;
+      else if (k === 'ArrowDown') player.dir = 2;
+      else if (k === 'ArrowLeft') player.dir = 3;
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+  });
+
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ---------- main loop ----------
+  function frame(t) {
+    if (!lastTime) lastTime = t;
+    let dt = (t - lastTime) / 1000;
+    lastTime = t;
+    if (dt > 0.05) dt = 0.05;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  resetGame();
+  showOverlay('menu');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
