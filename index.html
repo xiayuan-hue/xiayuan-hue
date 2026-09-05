@@ -1109,10 +1109,11 @@ function renderSpaProjects() {
   if (!grid || grid.dataset.rendered) return;
 
   // 转换项目数据为 AccordionGallery 格式
-  const items = spaProjects.map(function(p) {
+  const customLabels = ['个人网站搭建', 'AIGC 工作流', 'AI 辅助编程', '响应式 UI 设计'];
+  const items = spaProjects.map(function(p, i) {
     return {
       image: p.image ? encodeAssetPath(p.image) : '',
-      label: p.title,
+      label: customLabels[i] || p.title,
       alt: p.title,
       link: 'javascript:void(0)',
       _project: p
@@ -1141,7 +1142,7 @@ function renderSpaProjects() {
       tilt: 6,
       stagger: 0.06,
       trigger: 'hover',
-      showLabels: false,
+      showLabels: true,
       grayscale: true
     });
   } else {
